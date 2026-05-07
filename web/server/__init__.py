@@ -27,11 +27,11 @@ from xkcdpass import xkcd_password as xp
 from server.utils.logger import configure_logger
 
 
-def wait_for_postgres(max_retries=5, retry_interval=5):
+def wait_for_postgres(max_retries: int = 30, retry_interval: float = 2.0) -> None:
     retries = 0
     while retries < max_retries:
         try:
-            conn = connect(config.DATABASE_URL)
+            conn = connect(config.DATABASE_URL, connect_timeout=5)
             conn.close()
             logger.info("Successfully connected to PostgreSQL")
             return
