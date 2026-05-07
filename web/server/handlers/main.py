@@ -1,5 +1,7 @@
+from pathlib import Path
+
 from fastapi import Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from html5lib import serialize  # type: ignore
 from html5lib.html5parser import parse  # type: ignore
 from loguru import logger
@@ -11,6 +13,29 @@ from server.handlers.misc import delete_from_cache, report_problem
 from server.handlers.post import render_homepage, render_medium_post_link
 from server.services.jinja import base_template, main_template
 from server.utils.logger_trace import trace
+
+# Mirrors caddy/static assets for deployments without a reverse proxy (e.g. Railway).
+PUBLIC_ROOT = Path(__file__).resolve().parent.parent / "public"
+
+
+def maybe_public_file_response(rel_path: str) -> FileResponse | None:
+    # Only single-segment names under PUBLIC_ROOT; avoids path traversal.
+    if not rel_path or "/" in rel_path or "\\" in rel_path or rel_path.startswith("."):
+        return None
+    candidate = PUBLIC_ROOT / rel_path
+    try:
+        resolved = candidate.resolve()
+        resolved.relative_to(PUBLIC_ROOT.resolve())
+    except (ValueError, RuntimeError):
+        return None
+    if not resolved.is_file():
+        return None
+    media_type: str | None = None
+    if rel_path.endswith(".webmanifest"):
+        media_type = "application/manifest+json"
+    elif rel_path.endswith(".js"):
+        media_type = "application/javascript"
+    return FileResponse(path=str(resolved), media_type=media_type)
 
 
 @trace
@@ -25,6 +50,11 @@ async def route_processing(path: str, request: Request):
     logger.trace(f"no_cache: {db_cache}, no_redis: {redis}")
 
     path = path.removeprefix("/")
+
+    public_file = maybe_public_file_response(path)
+    if public_file is not None:
+        return public_file
+
     url = str(request.url)
 
     logger.debug(f"Path: {path}, URL: {url}")
@@ -69,7 +99,6 @@ def register_main_router(app):
         path="/{path:path}",
         endpoint=route_processing,
         methods=["GET", "HEAD"],
-        response_model=str,
         tags=["pages"],
         summary=None,
         description=None,

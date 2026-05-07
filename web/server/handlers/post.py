@@ -74,17 +74,22 @@ async def render_medium_post_link(path: str, use_cache: bool = True, use_redis: 
             ex,
             "Unable to identify the Medium article URL.",
             status_code=404,
+            quiet=True,
+            log_stacktrace=False,
         )
     except (medium_parser_exceptions.InvalidMediumPostURL, medium_parser_exceptions.MediumPostQueryError, medium_parser_exceptions.PageLoadingError) as ex:
         return await handle_exception(
             ex,
             "Unable to identify the link as a Medium.com article page. Please check the URL for any typing errors.",
             status_code=404,
+            log_stacktrace=False,
         )
     except medium_parser_exceptions.InvalidMediumPostID as ex:
         return await handle_exception(ex, "Unable to identify the Medium article ID.", status_code=500)
     except medium_parser_exceptions.NotValidMediumURL as ex:
-        return await handle_exception(ex, "You sure that this is a valid Medium.com URL?", status_code=404, quiet=True)
+        return await handle_exception(
+            ex, "You sure that this is a valid Medium.com URL?", status_code=404, quiet=True, log_stacktrace=False
+        )
     except Exception as ex:
         return await handle_exception(ex, status_code=500)
     else:
